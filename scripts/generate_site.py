@@ -54,7 +54,9 @@ PAGE_FOOT = """
 
 STYLE_CSS = """
 :root {
+  color-scheme: light;
   --bg: #f6f7fb;
+  --bg-soft: #eef0f6;
   --card-bg: #ffffff;
   --text: #1c1f26;
   --muted: #6b7280;
@@ -64,8 +66,28 @@ STYLE_CSS = """
   --green-bg: #e7f8ee; --green-text: #0f7a3d;
   --blue-bg: #e8f1ff; --blue-text: #1d4ed8;
   --amber-bg: #fff6e0; --amber-text: #92650a;
-  --radius: 12px;
+  --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-hover: 0 8px 24px rgba(16, 24, 40, 0.10);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --bg-soft: #161922;
+    --card-bg: #171a21;
+    --text: #e7e9ee;
+    --muted: #9aa1ae;
+    --border: #262a35;
+    --accent: #5b8def;
+    --accent-dark: #7fa6f2;
+    --green-bg: #103a24; --green-text: #4ade8a;
+    --blue-bg: #12233f; --blue-text: #7fa6f2;
+    --amber-bg: #3a2e0f; --amber-text: #f2c25b;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.35);
+    --shadow-hover: 0 8px 24px rgba(0,0,0,0.45);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -75,21 +97,25 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.55;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
 
 /* Header */
 .site-header {
-  background: linear-gradient(135deg, #1d4ed8, #2563eb 60%, #3b82f6);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb 55%, #3b82f6);
   color: #fff;
   padding: 18px 0;
   box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 .header-inner { display: flex; align-items: center; justify-content: space-between; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fff; }
-.brand-mark { font-size: 1.5rem; }
+.brand-mark { font-size: 1.5rem; line-height: 1; }
 .brand-text { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
 .site-header nav a {
   color: #eaf0ff;
@@ -102,15 +128,36 @@ body {
 }
 .site-header nav a:hover { background: rgba(255,255,255,0.15); }
 
+/* Hero */
+.hero { padding: 40px 0 8px; }
+.hero h1 {
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+.hero p.tagline { color: var(--muted); margin: 0 0 22px; font-size: 1.02rem; }
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+.stat-pill {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  box-shadow: var(--shadow);
+}
+.stat-pill strong { color: var(--text); }
+
 /* Layout */
-main.wrap { padding-top: 32px; padding-bottom: 48px; }
+main.wrap { padding-bottom: 48px; }
 h2 {
-  font-size: 1.3rem;
-  margin: 36px 0 16px;
+  font-size: 1.25rem;
+  margin: 40px 0 16px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--border);
+  letter-spacing: -0.01em;
 }
-h2:first-child { margin-top: 0; }
+h2:first-of-type { margin-top: 8px; }
 
 /* Deal cards */
 .updates { display: flex; flex-direction: column; gap: 12px; }
@@ -120,18 +167,21 @@ h2:first-child { margin-top: 0; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 16px 18px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: fade-in-up 0.4s ease backwards;
 }
-.deal-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(16,24,40,0.08); }
-.deal-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.deal-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.deal-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .deal-title { font-weight: 600; text-decoration: none; color: var(--text); font-size: 1.02rem; }
 .deal-title:hover { color: var(--accent-dark); text-decoration: underline; }
-.deal-detail { color: var(--muted); font-size: 0.93rem; margin-top: 4px; }
+.deal-detail { color: var(--muted); font-size: 0.93rem; margin-top: 5px; }
 .deal-detail strong { color: var(--text); }
 .affiliate-note { color: var(--muted); font-size: 0.8rem; font-style: italic; margin-left: 4px; }
 
 .tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-weight: 700;
   font-size: 0.72rem;
   letter-spacing: 0.02em;
@@ -150,7 +200,7 @@ h2:first-child { margin-top: 0; }
   background: var(--card-bg);
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: 28px;
   color: var(--muted);
   text-align: center;
 }
@@ -166,7 +216,7 @@ h2:first-child { margin-top: 0; }
 table.status { border-collapse: collapse; width: 100%; }
 table.status th, table.status td { padding: 12px 16px; text-align: left; }
 table.status th {
-  background: #fafbfd;
+  background: var(--bg-soft);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -174,9 +224,9 @@ table.status th {
   border-bottom: 1px solid var(--border);
 }
 table.status tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
-table.status tr:hover td { background: #fafbfd; }
+table.status tr:hover td { background: var(--bg-soft); }
 .stock-yes { color: var(--green-text); font-weight: 600; }
-.stock-no { color: #b42318; font-weight: 600; }
+.stock-no { color: #e5484d; font-weight: 600; }
 .stock-unknown { color: var(--muted); }
 
 /* About page */
@@ -185,7 +235,8 @@ table.status tr:hover td { background: #fafbfd; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 24px 28px;
+  padding: 26px 30px;
+  margin-top: 24px;
 }
 .about-card ul { padding-left: 20px; }
 .about-card li { margin-bottom: 6px; }
@@ -200,18 +251,35 @@ table.status tr:hover td { background: #fafbfd; }
 .site-footer p { margin: 4px 0; }
 .muted { color: var(--muted); }
 code {
-  background: #eef1f6;
+  background: var(--bg-soft);
   padding: 2px 6px;
   border-radius: 6px;
   font-size: 0.9em;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 560px) {
   .header-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .deal-card-top { flex-direction: column; align-items: flex-start; gap: 4px; }
   table.status th:nth-child(3), table.status td:nth-child(3) { display: none; }
+  .hero { padding-top: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deal-card { animation: none; }
+  .deal-card, .deal-card:hover { transition: none; transform: none; }
 }
 """
+
+TAG_ICONS = {
+    "price_drop": "&#128181;",     # money with wings-ish / drop
+    "restock": "&#9989;",          # check mark
+    "aggregator_deal": "&#128293;",  # fire
+}
 
 
 def load_yaml(path):
@@ -232,7 +300,7 @@ def format_price(value):
     return f"${value:,.2f}" if isinstance(value, (int, float)) else "—"
 
 
-def render_deal_card(u):
+def render_deal_card(u, index):
     utype = u["type"]
     if utype == "price_drop":
         label = "Price Drop"
@@ -253,12 +321,14 @@ def render_deal_card(u):
         affiliate_note = ""
         rel = "nofollow noopener"
 
+    icon = TAG_ICONS.get(utype, "")
     detail_html = f'<div class="deal-detail">{detail}</div>' if detail else ""
+    delay = min(index * 0.03, 0.3)
 
     return (
-        '<div class="deal-card">'
+        f'<div class="deal-card" style="animation-delay:{delay:.2f}s">'
         f'<div class="deal-card-top">'
-        f'<span class="tag {utype}">{label}</span>'
+        f'<span class="tag {utype}">{icon} {label}</span>'
         f'<span class="timestamp">{u["timestamp"]}</span>'
         f'</div>'
         f'<a class="deal-title" href="{link}" target="_blank" rel="{rel}">{u["product"]}</a>'
@@ -271,13 +341,27 @@ def render_deal_card(u):
 def render_index(last_seen, updates):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    html = [PAGE_HEAD.format(title="Deal Tracker — Latest Price Drops & Restocks")]
-    html.append("<h2>Latest Updates</h2>")
+    sources = {u.get("source") for u in updates if u["type"] == "aggregator_deal"}
+    sources.discard(None)
 
+    html = [PAGE_HEAD.format(title="Deal Tracker — Latest Price Drops & Restocks")]
+
+    html.append('<section class="hero">')
+    html.append("<h1>Deals, tracked automatically.</h1>")
+    html.append('<p class="tagline">Price drops, restocks, and fresh finds from across the web — updated every few hours, no one behind the wheel.</p>')
+    html.append('<div class="stat-row">')
+    html.append(f'<span class="stat-pill"><strong>{len(updates)}</strong> deals logged</span>')
+    html.append(f'<span class="stat-pill"><strong>{len(last_seen)}</strong> products watched closely</span>')
+    if sources:
+        html.append(f'<span class="stat-pill"><strong>{len(sources)}</strong> aggregator sources</span>')
+    html.append('</div>')
+    html.append('</section>')
+
+    html.append("<h2>Latest Updates</h2>")
     if updates:
         html.append('<div class="updates">')
-        for u in updates[:50]:
-            html.append(render_deal_card(u))
+        for i, u in enumerate(updates[:50]):
+            html.append(render_deal_card(u, i))
         html.append("</div>")
     else:
         html.append('<div class="empty-state">No deals recorded yet. Check back soon.</div>')
@@ -312,8 +396,10 @@ def render_index(last_seen, updates):
 def render_about():
     html = [PAGE_HEAD.format(title="About — Deal Tracker")]
     html.append("""
+<section class="hero" style="padding-top:16px;">
+<h1>About This Site</h1>
+</section>
 <div class="about-card">
-<h2 style="margin-top:0;border-bottom:none;padding-bottom:0;">About This Site</h2>
 <p>Deal Tracker automatically publishes deal updates from two sources, and checks
 run every few hours &mdash; nothing on this site is posted or edited by hand:</p>
 <ul>
