@@ -7,16 +7,22 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1><a href="index.html">Deal Tracker</a></h1>
-  <nav>
-    <a href="index.html">Home</a>
-    <a href="about.html">About</a>
-  </nav>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">&#128230;</span>
+      <span class="brand-text">Deal Tracker</span>
+    </a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
 </header>
-<main>
+<main class="wrap">
 
-<h2>About This Site</h2>
+<div class="about-card">
+<h2 style="margin-top:0;border-bottom:none;padding-bottom:0;">About This Site</h2>
 <p>Deal Tracker automatically publishes deal updates from two sources, and checks
 run every few hours &mdash; nothing on this site is posted or edited by hand:</p>
 <ul>
@@ -34,11 +40,14 @@ affiliate links.</p>
 
 <p>This is a personal hobby project built to keep an eye on good deals
 across the web.</p>
+</div>
 
 </main>
-<footer>
-  <p>As an Amazon Associate, this site may earn from qualifying purchases via links marked "(affiliate link)".</p>
-  <p>Page generated: 2026-07-09 20:50 UTC</p>
+<footer class="site-footer">
+  <div class="wrap">
+    <p>As an Amazon Associate, this site may earn from qualifying purchases via links marked <em>(affiliate link)</em>.</p>
+    <p class="muted">Page generated: 2026-07-09 20:53 UTC</p>
+  </div>
 </footer>
 </body>
 </html>
