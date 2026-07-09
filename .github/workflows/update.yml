@@ -29,6 +29,9 @@ jobs:
       - name: Check products for price drops / restocks
         run: python scripts/scrape.py
 
+      - name: Pull deals from aggregator feeds (Slickdeals, DealNews, etc.)
+        run: python scripts/aggregate.py
+
       - name: Regenerate static site
         run: python scripts/generate_site.py
 

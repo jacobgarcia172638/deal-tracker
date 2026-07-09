@@ -1,8 +1,19 @@
 # Deal Tracker
 
-A fully automated deal-tracking website. It checks a list of products you
-configure, detects price drops and restocks, and publishes updates to a free
-GitHub Pages site — on a schedule, with no manual work after setup.
+A fully automated deal-tracking website with two sources of deals, both
+published to a free GitHub Pages site on a schedule, with no manual work
+after setup:
+
+1. **Broad deal coverage** across many retailers, pulled automatically from
+   established deal-aggregator sites (Slickdeals, DealNews) via their public
+   RSS feeds. No configuration needed per product — this just runs.
+2. **Specific products you pick**, watched closely for price drops and
+   restocks using your own Amazon affiliate link.
+
+Note the important difference between the two: aggregator deals (#1) link to
+the original deal post and are **not** affiliate links. Only products you
+explicitly configure yourself (#2) use your affiliate link, clearly labeled
+"(affiliate link)".
 
 This README is split into three parts:
 
@@ -90,8 +101,22 @@ and will email you only if something breaks.
 ## Part B — The only file you ever edit: `config/products.yaml`
 
 This is the **one and only** file you should ever touch by hand, and only
-when you want to add or remove a tracked product, or add your real Amazon
-affiliate tag. No coding required — it's a plain text list.
+when you want to add or remove a tracked product, add another deal-aggregator
+RSS feed, or add your real Amazon affiliate tag. No coding required — it's a
+plain text list with two sections.
+
+### Section 1: `deal_sources` (broad coverage — rarely needs editing)
+
+Already configured with Slickdeals and DealNews. You don't need to touch
+this section at all unless you find another aggregator site with a public
+RSS feed you'd like added — just copy the pattern:
+
+```yaml
+  - name: "Another Aggregator"
+    rss_url: "https://example.com/deals/rss"
+```
+
+### Section 2: `products` (your hand-picked, closely-watched items)
 
 Open [`config/products.yaml`](config/products.yaml). Each product looks like
 this:
@@ -132,22 +157,23 @@ never need to rebuild, redeploy, or write any code.
 ## Part C — What runs itself vs. what needs you
 
 **Runs completely on its own, forever, with zero input from you:**
+- Pulling fresh deals from Slickdeals and DealNews's public feeds, every 4 hours.
 - Checking every product in `config/products.yaml` for price drops and restocks, every 4 hours.
 - Detecting changes and adding new "newest first" entries to the site.
 - Rebuilding the entire static site (`docs/index.html`, `about.html`) every run.
 - Committing and pushing the updated data/site back to GitHub automatically.
 - Publishing to your live GitHub Pages URL — no manual deploy, ever.
-- Skipping gracefully and logging a warning if one product's page breaks scraping, without stopping the other products or crashing the run.
+- Skipping gracefully and logging a warning if one product, or one aggregator feed, breaks — without stopping anything else or crashing the run.
 - Emailing you **only if a run genuinely fails** (per the Part A5 setting).
 
 **The only things that ever need you, and only if you want them:**
-- Editing `config/products.yaml` to add/remove a product or add your real affiliate tag (Part B). Optional, occasional, no coding.
+- Editing `config/products.yaml` to add/remove a product, add an aggregator feed, or add your real affiliate tag (Part B). Optional, occasional, no coding.
 - The one-time setup in Part A (create repo, enable Pages, enable email alerts) — done once, never again.
 
 If you never touch `config/products.yaml` again, the site keeps running and
-updating on the two sample/example entries already seeded in it. Nothing
-else will ever require your attention unless GitHub emails you about a
-failed run.
+publishing real deals from Slickdeals and DealNews automatically, plus the
+two sample/example product entries already seeded in it. Nothing else will
+ever require your attention unless GitHub emails you about a failed run.
 
 ---
 
@@ -166,12 +192,14 @@ scrape most reliably.
 
 ```
 deal-tracker/
-├── config/products.yaml      # <- the only file you ever edit
-├── data/last_seen.json       # last known price/stock per product (auto-updated)
-├── data/updates.json         # history of detected price drops/restocks (auto-updated)
-├── docs/                     # the generated static site (GitHub Pages serves this)
-├── scripts/scrape.py         # checks each product, updates data/
-├── scripts/generate_site.py  # rebuilds docs/ from data/
-├── .github/workflows/update.yml  # the schedule that runs everything
+├── config/products.yaml              # <- the only file you ever edit
+├── data/last_seen.json               # last known price/stock per product (auto-updated)
+├── data/updates.json                 # history of all deals shown on the site (auto-updated)
+├── data/seen_aggregator_links.json   # dedupe list for aggregator deals (auto-updated)
+├── docs/                             # the generated static site (GitHub Pages serves this)
+├── scripts/scrape.py                 # checks hand-picked products, updates data/
+├── scripts/aggregate.py              # pulls deals from Slickdeals/DealNews RSS feeds
+├── scripts/generate_site.py          # rebuilds docs/ from data/
+├── .github/workflows/update.yml      # the schedule that runs everything
 └── requirements.txt
 ```

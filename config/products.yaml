@@ -3,11 +3,47 @@
 # ============================================================
 # This is the ONLY file you should ever need to edit by hand.
 #
+# It has TWO sections:
+#
+#   1. deal_sources - broad deal coverage across many retailers,
+#      pulled automatically from established deal-aggregator sites
+#      (Slickdeals, DealNews, etc.). You don't need to touch this
+#      unless you want to add another aggregator's RSS feed later.
+#      These links are NOT affiliate links -- they point at the
+#      original deal post, so they're shown without an affiliate
+#      label on the site (that would be inaccurate).
+#
+#   2. products - a hand-picked list of SPECIFIC products you want
+#      watched closely for price drops/restocks, using your own
+#      affiliate link. This is the section you'll edit most.
+#
+# Changes to either section are picked up automatically on the NEXT
+# scheduled run (every few hours) — no coding, no rebuilding, nothing
+# else to do.
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. Broad deal coverage (many retailers, via RSS)
+# ------------------------------------------------------------
+# Fields:
+#   name    - A label shown on the site for where the deal came from.
+#   rss_url - The public RSS feed URL for that aggregator.
+# ------------------------------------------------------------
+deal_sources:
+  - name: "Slickdeals - Frontpage"
+    rss_url: "https://slickdeals.net/newsearch.php?mode=frontpage&rss=1"
+
+  - name: "DealNews - Top Deals"
+    rss_url: "https://www.dealnews.com/?rss=1&sort=time"
+
+  # - name: "Another Aggregator"
+  #   rss_url: "https://example.com/deals/rss"
+
+# ------------------------------------------------------------
+# 2. Specific products you want watched closely
+# ------------------------------------------------------------
 # To add a product: copy one of the blocks below, change the
 # values, save the file. To remove a product: delete its block.
-#
-# Changes are picked up automatically on the NEXT scheduled run
-# (every few hours) — no coding, no rebuilding, nothing else to do.
 #
 # Fields:
 #   name           - A label for your reference. Shown on the site.
@@ -20,8 +56,7 @@
 #                    or "Add to Cart". Used to detect restocks.
 #                    If you're not sure, "In Stock" is a reasonable
 #                    default to start with — you can refine it later.
-# ============================================================
-
+# ------------------------------------------------------------
 products:
   - name: "Example Wireless Mouse"
     url: "https://www.amazon.com/dp/B0EXAMPLE1"

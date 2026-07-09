@@ -57,6 +57,7 @@ ul.updates li { padding: 10px 0; border-bottom: 1px solid #eee; }
 .tag { font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 8px; }
 .tag.price_drop { background: #d4edda; color: #155724; }
 .tag.restock { background: #cce5ff; color: #004085; }
+.tag.aggregator_deal { background: #fff3cd; color: #856404; }
 .timestamp { color: #888; font-size: 0.85em; float: right; }
 table.status { border-collapse: collapse; width: 100%; margin-top: 10px; }
 table.status th, table.status td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -92,16 +93,30 @@ def render_index(last_seen, updates):
     if updates:
         html.append('<ul class="updates">')
         for u in updates[:50]:
-            label = "Price Drop" if u["type"] == "price_drop" else "Restock"
-            link = u.get("affiliate_link", "#")
-            if u["type"] == "price_drop":
+            utype = u["type"]
+            if utype == "price_drop":
+                label = "Price Drop"
+                link = u.get("affiliate_link", "#")
                 detail = f'{format_price(u.get("old_price"))} → <strong>{format_price(u.get("new_price"))}</strong>'
-            else:
+                affiliate_note = ' <em>(affiliate link)</em>'
+                rel = "nofollow sponsored noopener"
+            elif utype == "restock":
+                label = "Restock"
+                link = u.get("affiliate_link", "#")
                 detail = f'Now in stock — {format_price(u.get("new_price"))}'
+                affiliate_note = ' <em>(affiliate link)</em>'
+                rel = "nofollow sponsored noopener"
+            else:  # aggregator_deal -- from an external deal site, not our affiliate link
+                label = u.get("source", "Deal")
+                link = u.get("link", "#")
+                detail = u.get("snippet", "")
+                affiliate_note = ""
+                rel = "nofollow noopener"
+            detail_html = f' — {detail}' if detail else ""
             html.append(
-                f'<li><span class="tag {u["type"]}">{label}</span> '
-                f'<a href="{link}" target="_blank" rel="nofollow sponsored noopener">{u["product"]}</a> '
-                f'<em>(affiliate link)</em> — {detail} '
+                f'<li><span class="tag {utype}">{label}</span> '
+                f'<a href="{link}" target="_blank" rel="{rel}">{u["product"]}</a>'
+                f'{affiliate_note}{detail_html} '
                 f'<span class="timestamp">{u["timestamp"]}</span></li>'
             )
         html.append("</ul>")
@@ -133,16 +148,23 @@ def render_about():
     html = [PAGE_HEAD.format(title="About — Deal Tracker")]
     html.append("""
 <h2>About This Site</h2>
-<p>Deal Tracker automatically monitors a small list of products for price drops
-and restocks, and publishes updates here as soon as they're detected. Checks run
-automatically every few hours &mdash; nothing on this site is posted or edited by hand.</p>
+<p>Deal Tracker automatically publishes deal updates from two sources, and checks
+run every few hours &mdash; nothing on this site is posted or edited by hand:</p>
+<ul>
+<li>Broad deal coverage pulled from established deal-aggregator sites (Slickdeals,
+DealNews) spanning many retailers.</li>
+<li>A hand-picked list of specific products watched closely for price drops and
+restocks.</li>
+</ul>
 
 <p>Some links on this site are Amazon affiliate links, clearly marked
-"(affiliate link)". As an Amazon Associate, this site may earn from qualifying
-purchases at no extra cost to you.</p>
+"(affiliate link)" &mdash; as an Amazon Associate, this site may earn from
+qualifying purchases on those at no extra cost to you. Deals sourced from
+aggregator sites link directly to the original deal post and are not
+affiliate links.</p>
 
-<p>This is a personal hobby project built to keep an eye on prices for a
-small, hand-picked list of products.</p>
+<p>This is a personal hobby project built to keep an eye on good deals
+across the web.</p>
 """)
     html.append(PAGE_FOOT.format(updated=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")))
     return "".join(html)

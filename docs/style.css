@@ -10,6 +10,7 @@ ul.updates li { padding: 10px 0; border-bottom: 1px solid #eee; }
 .tag { font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 8px; }
 .tag.price_drop { background: #d4edda; color: #155724; }
 .tag.restock { background: #cce5ff; color: #004085; }
+.tag.aggregator_deal { background: #fff3cd; color: #856404; }
 .timestamp { color: #888; font-size: 0.85em; float: right; }
 table.status { border-collapse: collapse; width: 100%; margin-top: 10px; }
 table.status th, table.status td { border: 1px solid #ddd; padding: 8px; text-align: left; }
