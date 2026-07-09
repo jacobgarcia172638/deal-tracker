@@ -1,0 +1,17 @@
+
+body { font-family: -apple-system, Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; line-height: 1.5; }
+header { border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px; }
+header h1 { margin: 0 0 8px 0; }
+header h1 a { text-decoration: none; color: #b12704; }
+nav a { margin-right: 15px; color: #007185; text-decoration: none; }
+nav a:hover { text-decoration: underline; }
+ul.updates { list-style: none; padding: 0; }
+ul.updates li { padding: 10px 0; border-bottom: 1px solid #eee; }
+.tag { font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 8px; }
+.tag.price_drop { background: #d4edda; color: #155724; }
+.tag.restock { background: #cce5ff; color: #004085; }
+.timestamp { color: #888; font-size: 0.85em; float: right; }
+table.status { border-collapse: collapse; width: 100%; margin-top: 10px; }
+table.status th, table.status td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+table.status th { background: #fafafa; }
+footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; color: #666; font-size: 0.85em; }

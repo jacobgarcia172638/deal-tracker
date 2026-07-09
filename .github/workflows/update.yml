@@ -1,0 +1,45 @@
+name: Update Deal Tracker
+
+# Runs on its own every 4 hours. "workflow_dispatch" just means you *could*
+# also trigger it manually from the Actions tab if you ever wanted to --
+# you never need to.
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check products for price drops / restocks
+        run: python scripts/scrape.py
+
+      - name: Regenerate static site
+        run: python scripts/generate_site.py
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ docs/
+          if git diff --cached --quiet; then
+            echo "No changes to commit this run."
+          else
+            git commit -m "Automated update: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

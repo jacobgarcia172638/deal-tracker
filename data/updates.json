@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2026-07-09T00:00:00Z",
+    "product": "Sample Deal — Wireless Mouse (example)",
+    "type": "price_drop",
+    "old_price": 24.99,
+    "new_price": 19.99,
+    "affiliate_link": "https://example.com/sample-product-1"
+  },
+  {
+    "timestamp": "2026-07-08T20:00:00Z",
+    "product": "Sample Deal — Bluetooth Speaker (example)",
+    "type": "restock",
+    "new_price": 34.5,
+    "affiliate_link": "https://example.com/sample-product-2"
+  }
+]

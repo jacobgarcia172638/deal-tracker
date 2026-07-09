@@ -1,0 +1,39 @@
+# ============================================================
+# PRODUCT TRACKING CONFIG
+# ============================================================
+# This is the ONLY file you should ever need to edit by hand.
+#
+# To add a product: copy one of the blocks below, change the
+# values, save the file. To remove a product: delete its block.
+#
+# Changes are picked up automatically on the NEXT scheduled run
+# (every few hours) — no coding, no rebuilding, nothing else to do.
+#
+# Fields:
+#   name           - A label for your reference. Shown on the site.
+#   url            - The product page the robot should check.
+#   affiliate_link - The link shown to visitors on the site. Use your
+#                    real Amazon affiliate link once you're approved.
+#                    Until then, just repeat the plain "url" here.
+#   in_stock_text  - A short snippet of text that only appears on the
+#                    page when the item is IN STOCK, e.g. "In Stock"
+#                    or "Add to Cart". Used to detect restocks.
+#                    If you're not sure, "In Stock" is a reasonable
+#                    default to start with — you can refine it later.
+# ============================================================
+
+products:
+  - name: "Example Wireless Mouse"
+    url: "https://www.amazon.com/dp/B0EXAMPLE1"
+    affiliate_link: "https://www.amazon.com/dp/B0EXAMPLE1?tag=YOURTAG-20"
+    in_stock_text: "In Stock"
+
+  - name: "Example Bluetooth Speaker"
+    url: "https://www.amazon.com/dp/B0EXAMPLE2"
+    affiliate_link: "https://www.amazon.com/dp/B0EXAMPLE2?tag=YOURTAG-20"
+    in_stock_text: "In Stock"
+
+  # - name: "Another Product"
+  #   url: "https://www.amazon.com/dp/PASTE_ASIN_HERE"
+  #   affiliate_link: "https://www.amazon.com/dp/PASTE_ASIN_HERE?tag=YOURTAG-20"
+  #   in_stock_text: "In Stock"

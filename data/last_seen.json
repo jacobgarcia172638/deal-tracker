@@ -1,0 +1,14 @@
+{
+  "Sample Deal — Wireless Mouse (example)": {
+    "url": "https://example.com/sample-product-1",
+    "price": 19.99,
+    "in_stock": true,
+    "last_checked": "2026-07-09T00:00:00Z"
+  },
+  "Sample Deal — Bluetooth Speaker (example)": {
+    "url": "https://example.com/sample-product-2",
+    "price": 34.5,
+    "in_stock": false,
+    "last_checked": "2026-07-09T00:00:00Z"
+  }
+}
