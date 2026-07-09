@@ -1,16 +1,18 @@
 """
-Checks every product in config/products.yaml for price changes and restocks.
+Checks every product in config/products.yaml for price changes and restocks,
+and writes results to Supabase (see supabase_client.py) -- not to local JSON
+-- since this repo is public and its content is meant to be paywalled.
 
 Design notes (why it's built this way):
-- Each product is checked inside its own try/except. If one product's page
-  layout changes and breaks scraping, we log it and move on -- we never let
-  one bad product take down the whole run.
-- Only truly fatal problems (e.g. a broken products.yaml) are allowed to
-  raise and fail the whole script, which is what triggers GitHub Actions'
-  failure e-mail.
+- Each product is checked and written inside one try/except. If one
+  product's page layout changes and breaks scraping, or the write to
+  Supabase fails, we log it and move on -- we never let one bad product
+  take down the whole run.
+- Only truly fatal problems (e.g. a broken products.yaml, or missing
+  Supabase credentials) are allowed to raise and fail the whole script,
+  which is what triggers GitHub Actions' failure e-mail.
 """
 
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -20,10 +22,10 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 
+from supabase_client import get_all_tracked_products, insert_deals, upsert_tracked_product
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "products.yaml"
-LAST_SEEN_PATH = ROOT / "data" / "last_seen.json"
-UPDATES_PATH = ROOT / "data" / "updates.json"
 
 HEADERS = {
     "User-Agent": (
@@ -42,19 +44,6 @@ log = logging.getLogger("scrape")
 def load_yaml(path):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
-
-
-def load_json(path, default):
-    if not path.exists():
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def extract_price(soup):
@@ -107,15 +96,64 @@ def check_product(product):
     }
 
 
+def process_product(product, previous):
+    """Runs the check, compares to the previous snapshot, and writes results.
+    Raised exceptions are caught by the caller so one bad product never kills
+    the run."""
+    name = product["name"]
+    url = product["url"]
+
+    result = check_product(product)
+    new_price = result["price"]
+    new_stock = result["in_stock"]
+
+    if previous:
+        old_price = previous.get("price")
+        old_stock = previous.get("in_stock")
+
+        deals = []
+        if new_price is not None and old_price is not None and new_price < old_price:
+            deals.append({
+                "type": "price_drop",
+                "product": name,
+                "affiliate_link": product.get("affiliate_link", url),
+                "old_price": old_price,
+                "new_price": new_price,
+            })
+            log.info("Price drop detected for '%s': %s -> %s", name, old_price, new_price)
+
+        if old_stock is False and new_stock is True:
+            deals.append({
+                "type": "restock",
+                "product": name,
+                "affiliate_link": product.get("affiliate_link", url),
+                "new_price": new_price,
+            })
+            log.info("Restock detected for '%s'", name)
+
+        if deals:
+            insert_deals(deals)
+    else:
+        log.info("First check for '%s' -- recording baseline, no alert generated.", name)
+
+    upsert_tracked_product({
+        "name": name,
+        "url": url,
+        "price": new_price,
+        "in_stock": new_stock,
+        "last_checked": result["last_checked"],
+    })
+
+
 def main():
     config = load_yaml(CONFIG_PATH)
     products = config.get("products", [])
 
-    last_seen = load_json(LAST_SEEN_PATH, {})
-    updates = load_json(UPDATES_PATH, [])
-
     if not products:
         log.warning("No products configured in %s -- nothing to check.", CONFIG_PATH)
+        return
+
+    last_seen = get_all_tracked_products()
 
     for product in products:
         name = product.get("name")
@@ -125,51 +163,10 @@ def main():
             continue
 
         try:
-            result = check_product(product)
+            process_product(product, last_seen.get(name))
         except Exception as exc:  # noqa: BLE001 -- one broken product must never kill the run
-            log.error("Failed to check '%s' (%s): %s", name, url, exc)
+            log.error("Failed to process '%s' (%s): %s", name, url, exc)
             continue
-
-        previous = last_seen.get(name)
-        new_price = result["price"]
-        new_stock = result["in_stock"]
-
-        if previous:
-            old_price = previous.get("price")
-            old_stock = previous.get("in_stock")
-
-            if new_price is not None and old_price is not None and new_price < old_price:
-                updates.insert(0, {
-                    "timestamp": result["last_checked"],
-                    "product": name,
-                    "type": "price_drop",
-                    "old_price": old_price,
-                    "new_price": new_price,
-                    "affiliate_link": product.get("affiliate_link", url),
-                })
-                log.info("Price drop detected for '%s': %s -> %s", name, old_price, new_price)
-
-            if old_stock is False and new_stock is True:
-                updates.insert(0, {
-                    "timestamp": result["last_checked"],
-                    "product": name,
-                    "type": "restock",
-                    "new_price": new_price,
-                    "affiliate_link": product.get("affiliate_link", url),
-                })
-                log.info("Restock detected for '%s'", name)
-        else:
-            log.info("First check for '%s' -- recording baseline, no alert generated.", name)
-
-        last_seen[name] = {
-            "url": url,
-            "price": new_price,
-            "in_stock": new_stock,
-            "last_checked": result["last_checked"],
-        }
-
-    save_json(LAST_SEEN_PATH, last_seen)
-    save_json(UPDATES_PATH, updates[:200])  # cap history so the file doesn't grow forever
 
 
 if __name__ == "__main__":

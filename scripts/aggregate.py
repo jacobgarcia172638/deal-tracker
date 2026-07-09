@@ -1,8 +1,9 @@
 """
 Pulls already-vetted deals from public RSS feeds of established deal
-aggregator sites (Slickdeals, DealNews, etc.) and adds any new ones to
-data/updates.json. This is how the site covers "many different websites"
-without needing a specific product URL configured for each one.
+aggregator sites (Slickdeals, DealNews, etc.) and writes any new ones to
+Supabase (see supabase_client.py). This is how the site covers "many
+different websites" without needing a specific product URL configured for
+each one.
 
 Complements scrape.py, which instead tracks a hand-picked list of specific
 products from config/products.yaml for price drops/restocks.
@@ -11,14 +12,14 @@ Design notes:
 - Each feed is fetched inside its own try/except -- if one feed goes down
   or changes format, it's logged and skipped, same self-healing approach
   as scrape.py.
-- data/seen_aggregator_links.json remembers which deal links have already
-  been published, so re-running every 4 hours doesn't re-add duplicates.
+- Duplicate deals (same 'link') are skipped automatically by a unique
+  index in Supabase (see supabase/schema.sql) -- no local "seen" file
+  needed anymore.
 - These are NOT affiliate links -- they point at the original deal page
   from the aggregator site, so they are intentionally NOT labeled
   "(affiliate link)" on the site.
 """
 
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -28,10 +29,10 @@ from xml.etree import ElementTree as ET
 import requests
 import yaml
 
+from supabase_client import insert_deals, require_config
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "products.yaml"
-UPDATES_PATH = ROOT / "data" / "updates.json"
-SEEN_PATH = ROOT / "data" / "seen_aggregator_links.json"
 
 HEADERS = {
     "User-Agent": (
@@ -49,19 +50,6 @@ log = logging.getLogger("aggregate")
 def load_yaml(path):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
-
-
-def load_json(path, default):
-    if not path.exists():
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def clean_snippet(text, limit=200):
@@ -85,8 +73,9 @@ def fetch_feed(name, rss_url):
         if not title or not link:
             continue
         items.append({
+            "type": "aggregator_deal",
+            "product": title,
             "source": name,
-            "title": title,
             "link": link,
             "snippet": clean_snippet(description),
         })
@@ -94,16 +83,19 @@ def fetch_feed(name, rss_url):
 
 
 def main():
+    # Fail fast and loudly if Supabase isn't configured at all -- this must
+    # NOT be swallowed as a per-feed failure below, or a total
+    # misconfiguration would silently never trigger the failure email.
+    require_config()
+
     config = load_yaml(CONFIG_PATH)
     sources = config.get("deal_sources", [])
 
-    updates = load_json(UPDATES_PATH, [])
-    seen_links = set(load_json(SEEN_PATH, []))
-
     if not sources:
         log.warning("No deal_sources configured in %s -- nothing to aggregate.", CONFIG_PATH)
+        return
 
-    new_count = 0
+    total_new = 0
 
     for source in sources:
         name = source.get("name")
@@ -114,32 +106,15 @@ def main():
 
         try:
             items = fetch_feed(name, rss_url)
+            inserted = insert_deals(items)
         except Exception as exc:  # noqa: BLE001 -- one broken feed must never kill the run
-            log.error("Failed to fetch feed '%s' (%s): %s", name, rss_url, exc)
+            log.error("Failed to process feed '%s' (%s): %s", name, rss_url, exc)
             continue
 
-        added_this_source = 0
-        for entry in items:
-            if entry["link"] in seen_links:
-                continue
-            updates.insert(0, {
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "type": "aggregator_deal",
-                "product": entry["title"],
-                "source": entry["source"],
-                "link": entry["link"],
-                "snippet": entry["snippet"],
-            })
-            seen_links.add(entry["link"])
-            new_count += 1
-            added_this_source += 1
+        log.info("Fetched %d items from '%s', %d new.", len(items), name, len(inserted))
+        total_new += len(inserted)
 
-        log.info("Fetched %d items from '%s', %d new.", len(items), name, added_this_source)
-
-    save_json(UPDATES_PATH, updates[:300])
-    save_json(SEEN_PATH, list(seen_links)[-5000:])  # cap so the file doesn't grow forever
-
-    log.info("Added %d new aggregator deals this run.", new_count)
+    log.info("Added %d new aggregator deals this run.", total_new)
 
 
 if __name__ == "__main__":

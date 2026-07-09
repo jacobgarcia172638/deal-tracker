@@ -150,6 +150,35 @@ h2:first-of-type { margin-top: 8px; }
   color: var(--muted);
   text-align: center;
 }
+.empty-state.gate { border-style: solid; text-align: left; }
+.empty-state.gate h3 { margin: 0 0 8px; color: var(--text); }
+
+/* Login / upgrade */
+.login-form { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 6px; }
+.login-form input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.login-form button, .upgrade-btn {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s ease;
+}
+.login-form button:hover, .upgrade-btn:hover { background: var(--accent-dark); }
 
 /* Status table */
 .table-card {

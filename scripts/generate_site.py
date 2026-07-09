@@ -1,20 +1,32 @@
 """
-Reads data/last_seen.json and data/updates.json and (re)writes the static
-site in docs/ -- index.html, about.html, style.css. Runs every time so the
-site never needs a manual rebuild.
+Regenerates the static site shell in docs/ -- index.html, about.html,
+style.css. Runs every time so the site never needs a manual rebuild.
+
+Unlike the earlier version of this script, deal content is NOT baked into
+the HTML anymore. Only a static "shell" (header, hero, About page, login
+form) is generated here. The actual deals and tracked-product data are
+fetched live, client-side, straight from Supabase -- and Postgres Row
+Level Security (see supabase/schema.sql) decides whether the visitor is
+entitled to see them (active trial or active subscription). That's what
+makes the paywall real instead of cosmetic: the gate is enforced by the
+database, not by this script or by JavaScript in the page.
+
+Requires SUPABASE_URL, SUPABASE_ANON_KEY, STRIPE_PAYMENT_LINK as
+environment variables. The anon key is safe to embed in public HTML by
+design -- Supabase's security model relies on RLS policies, not on keeping
+the anon key secret.
 """
 
-import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config" / "products.yaml"
-LAST_SEEN_PATH = ROOT / "data" / "last_seen.json"
-UPDATES_PATH = ROOT / "data" / "updates.json"
 DOCS_DIR = ROOT / "docs"
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "")
 
 PAGE_HEAD = """<!DOCTYPE html>
 <html lang="en">
@@ -204,6 +216,35 @@ h2:first-of-type { margin-top: 8px; }
   color: var(--muted);
   text-align: center;
 }
+.empty-state.gate { border-style: solid; text-align: left; }
+.empty-state.gate h3 { margin: 0 0 8px; color: var(--text); }
+
+/* Login / upgrade */
+.login-form { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 6px; }
+.login-form input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.login-form button, .upgrade-btn {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s ease;
+}
+.login-form button:hover, .upgrade-btn:hover { background: var(--accent-dark); }
 
 /* Status table */
 .table-card {
@@ -275,121 +316,220 @@ code {
 }
 """
 
-TAG_ICONS = {
-    "price_drop": "&#128181;",     # money with wings-ish / drop
-    "restock": "&#9989;",          # check mark
-    "aggregator_deal": "&#128293;",  # fire
-}
+# Vanilla JS, no build step. Loaded only on index.html. Handles: email login
+# (magic link, no password), checking trial/subscription entitlement, and
+# rendering deals -- all fetched live from Supabase, gated by that project's
+# Row Level Security policies (see supabase/schema.sql). If a visitor isn't
+# entitled, the "deals" query below simply comes back empty -- there is no
+# code path in this file that can show gated content to the wrong person,
+# because the enforcement lives in Postgres, not here.
+APP_SCRIPT = """
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+  var SUPABASE_URL = "%(supabase_url)s";
+  var SUPABASE_ANON_KEY = "%(supabase_anon_key)s";
+  var STRIPE_PAYMENT_LINK = "%(stripe_payment_link)s";
+  var TRIAL_MS = 24 * 60 * 60 * 1000;
 
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    document.getElementById('app').innerHTML =
+      '<div class="empty-state">Site is not yet configured (missing Supabase settings).</div>';
+    return;
+  }
 
-def load_yaml(path):
-    if not path.exists():
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var appEl = document.getElementById('app');
 
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
-def load_json(path, default):
-    if not path.exists():
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+  function formatPrice(v) {
+    return (typeof v === 'number') ? ('$' + v.toFixed(2)) : '—';
+  }
 
+  function renderSignedOut() {
+    appEl.innerHTML =
+      '<div class="empty-state gate">' +
+      '<h3>Start your free day</h3>' +
+      '<p>Enter your email for a one-click login link. Browse free for 24 hours, no card required.</p>' +
+      '<form id="login-form" class="login-form">' +
+      '<input type="email" id="login-email" placeholder="you@example.com" required>' +
+      '<button type="submit">Send my login link</button>' +
+      '</form>' +
+      '<p id="login-status" class="muted"></p>' +
+      '</div>';
 
-def format_price(value):
-    return f"${value:,.2f}" if isinstance(value, (int, float)) else "—"
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = document.getElementById('login-email').value.trim();
+      var statusEl = document.getElementById('login-status');
+      statusEl.textContent = 'Sending...';
+      sb.auth.signInWithOtp({
+        email: email,
+        options: { emailRedirectTo: window.location.href }
+      }).then(function (res) {
+        statusEl.textContent = res.error
+          ? ('Error: ' + res.error.message)
+          : 'Check your email for a login link.';
+      });
+    });
+  }
 
+  function renderLocked(userId, email) {
+    var url;
+    try { url = new URL(STRIPE_PAYMENT_LINK); } catch (e) { url = null; }
+    if (url) {
+      if (userId) url.searchParams.set('client_reference_id', userId);
+      if (email) url.searchParams.set('prefilled_email', email);
+    }
+    var href = url ? url.toString() : '#';
+    appEl.innerHTML =
+      '<div class="empty-state gate">' +
+      '<h3>Your free day is up</h3>' +
+      '<p>Subscribe for $4/month to keep seeing new deals as they\\'re found.</p>' +
+      '<a class="upgrade-btn" href="' + href + '">Subscribe — $4/mo</a>' +
+      '</div>';
+  }
 
-def render_deal_card(u, index):
-    utype = u["type"]
-    if utype == "price_drop":
-        label = "Price Drop"
-        link = u.get("affiliate_link", "#")
-        detail = f'{format_price(u.get("old_price"))} → <strong>{format_price(u.get("new_price"))}</strong>'
-        affiliate_note = '<span class="affiliate-note">(affiliate link)</span>'
-        rel = "nofollow sponsored noopener"
-    elif utype == "restock":
-        label = "Restock"
-        link = u.get("affiliate_link", "#")
-        detail = f'Now in stock — <strong>{format_price(u.get("new_price"))}</strong>'
-        affiliate_note = '<span class="affiliate-note">(affiliate link)</span>'
-        rel = "nofollow sponsored noopener"
-    else:  # aggregator_deal -- from an external deal site, not our affiliate link
-        label = u.get("source", "Deal")
-        link = u.get("link", "#")
-        detail = u.get("snippet", "")
-        affiliate_note = ""
-        rel = "nofollow noopener"
-
-    icon = TAG_ICONS.get(utype, "")
-    detail_html = f'<div class="deal-detail">{detail}</div>' if detail else ""
-    delay = min(index * 0.03, 0.3)
-
+  function dealCardHtml(u, index) {
+    var icons = { price_drop: '&#128181;', restock: '&#9989;', aggregator_deal: '&#128293;' };
+    var label, link, detail, note, rel;
+    if (u.type === 'price_drop') {
+      label = 'Price Drop';
+      link = u.affiliate_link || '#';
+      detail = formatPrice(u.old_price) + ' → <strong>' + formatPrice(u.new_price) + '</strong>';
+      note = '<span class="affiliate-note">(affiliate link)</span>';
+      rel = 'nofollow sponsored noopener';
+    } else if (u.type === 'restock') {
+      label = 'Restock';
+      link = u.affiliate_link || '#';
+      detail = 'Now in stock — <strong>' + formatPrice(u.new_price) + '</strong>';
+      note = '<span class="affiliate-note">(affiliate link)</span>';
+      rel = 'nofollow sponsored noopener';
+    } else {
+      label = u.source || 'Deal';
+      link = u.link || '#';
+      detail = u.snippet || '';
+      note = '';
+      rel = 'nofollow noopener';
+    }
+    var icon = icons[u.type] || '';
+    var delay = Math.min(index * 0.03, 0.3).toFixed(2);
     return (
-        f'<div class="deal-card" style="animation-delay:{delay:.2f}s">'
-        f'<div class="deal-card-top">'
-        f'<span class="tag {utype}">{icon} {label}</span>'
-        f'<span class="timestamp">{u["timestamp"]}</span>'
-        f'</div>'
-        f'<a class="deal-title" href="{link}" target="_blank" rel="{rel}">{u["product"]}</a>'
-        f'{affiliate_note}'
-        f'{detail_html}'
-        '</div>'
-    )
+      '<div class="deal-card" style="animation-delay:' + delay + 's">' +
+      '<div class="deal-card-top">' +
+      '<span class="tag ' + u.type + '">' + icon + ' ' + escapeHtml(label) + '</span>' +
+      '<span class="timestamp">' + escapeHtml(u.created_at || '') + '</span>' +
+      '</div>' +
+      '<a class="deal-title" href="' + link + '" target="_blank" rel="' + rel + '">' + escapeHtml(u.product) + '</a>' +
+      note +
+      (detail ? '<div class="deal-detail">' + detail + '</div>' : '') +
+      '</div>'
+    );
+  }
+
+  function renderEntitled(deals, products) {
+    var html = '';
+    html += '<div class="stat-row" style="margin-bottom:28px;">';
+    html += '<span class="stat-pill"><strong>' + deals.length + '</strong> deals logged</span>';
+    html += '<span class="stat-pill"><strong>' + products.length + '</strong> products watched closely</span>';
+    html += '</div>';
+
+    html += '<h2>Latest Updates</h2>';
+    if (deals.length) {
+      html += '<div class="updates">' + deals.map(dealCardHtml).join('') + '</div>';
+    } else {
+      html += '<div class="empty-state">No deals recorded yet. Check back soon.</div>';
+    }
+
+    html += '<h2>Currently Tracked Products</h2>';
+    if (products.length) {
+      html += '<div class="table-card"><table class="status">';
+      html += '<tr><th>Product</th><th>Price</th><th>In Stock</th><th>Last Checked</th></tr>';
+      products.forEach(function (p) {
+        var stockLabel = p.in_stock === true ? '<span class="stock-yes">Yes</span>'
+          : p.in_stock === false ? '<span class="stock-no">No</span>'
+          : '<span class="stock-unknown">Unknown</span>';
+        html += '<tr><td>' + escapeHtml(p.name) + '</td><td>' + formatPrice(p.price) + '</td>' +
+          '<td>' + stockLabel + '</td><td>' + escapeHtml(p.last_checked || '—') + '</td></tr>';
+      });
+      html += '</table></div>';
+    } else {
+      html += '<div class="empty-state">No products configured yet — add some in <code>config/products.yaml</code>.</div>';
+    }
+
+    appEl.innerHTML = html;
+  }
+
+  function main() {
+    sb.auth.getSession().then(function (res) {
+      var session = res.data.session;
+      if (!session) { renderSignedOut(); return; }
+
+      var userId = session.user.id;
+      var email = session.user.email;
+
+      Promise.all([
+        sb.from('profiles').select('trial_started_at').eq('id', userId).maybeSingle(),
+        sb.from('subscriptions').select('status').eq('user_id', userId).maybeSingle()
+      ]).then(function (results) {
+        var profile = results[0].data;
+        var subscription = results[1].data;
+
+        var trialActive = false;
+        if (profile && profile.trial_started_at) {
+          var started = new Date(profile.trial_started_at).getTime();
+          trialActive = (Date.now() - started) < TRIAL_MS;
+        }
+        var subscribed = subscription && subscription.status === 'active';
+
+        if (!trialActive && !subscribed) { renderLocked(userId, email); return; }
+
+        Promise.all([
+          sb.from('deals').select('*').order('created_at', { ascending: false }).limit(50),
+          sb.from('tracked_products').select('*')
+        ]).then(function (dealsResults) {
+          renderEntitled(dealsResults[0].data || [], dealsResults[1].data || []);
+        });
+      });
+    });
+  }
+
+  sb.auth.onAuthStateChange(function () { main(); });
+  main();
+})();
+</script>
+"""
 
 
-def render_index(last_seen, updates):
+def render_index():
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-    sources = {u.get("source") for u in updates if u["type"] == "aggregator_deal"}
-    sources.discard(None)
 
     html = [PAGE_HEAD.format(title="Deal Tracker — Latest Price Drops & Restocks")]
 
     html.append('<section class="hero">')
     html.append("<h1>Deals, tracked automatically.</h1>")
-    html.append('<p class="tagline">Price drops, restocks, and fresh finds from across the web — updated every few hours, no one behind the wheel.</p>')
-    html.append('<div class="stat-row">')
-    html.append(f'<span class="stat-pill"><strong>{len(updates)}</strong> deals logged</span>')
-    html.append(f'<span class="stat-pill"><strong>{len(last_seen)}</strong> products watched closely</span>')
-    if sources:
-        html.append(f'<span class="stat-pill"><strong>{len(sources)}</strong> aggregator sources</span>')
-    html.append('</div>')
-    html.append('</section>')
+    html.append(
+        '<p class="tagline">Price drops, restocks, and fresh finds from across the web '
+        "— updated every few hours, no one behind the wheel.</p>"
+    )
+    html.append("</section>")
 
-    html.append("<h2>Latest Updates</h2>")
-    if updates:
-        html.append('<div class="updates">')
-        for i, u in enumerate(updates[:50]):
-            html.append(render_deal_card(u, i))
-        html.append("</div>")
-    else:
-        html.append('<div class="empty-state">No deals recorded yet. Check back soon.</div>')
-
-    html.append("<h2>Currently Tracked Products</h2>")
-    if last_seen:
-        html.append('<div class="table-card"><table class="status">')
-        html.append("<tr><th>Product</th><th>Price</th><th>In Stock</th><th>Last Checked</th></tr>")
-        for name, info in last_seen.items():
-            stock = info.get("in_stock")
-            if stock is True:
-                stock_label = '<span class="stock-yes">Yes</span>'
-            elif stock is False:
-                stock_label = '<span class="stock-no">No</span>'
-            else:
-                stock_label = '<span class="stock-unknown">Unknown</span>'
-            html.append(
-                f"<tr><td>{name}</td><td>{format_price(info.get('price'))}</td>"
-                f"<td>{stock_label}</td><td>{info.get('last_checked', '—')}</td></tr>"
-            )
-        html.append("</table></div>")
-    else:
-        html.append(
-            '<div class="empty-state">No products configured yet — '
-            'add some in <code>config/products.yaml</code>.</div>'
-        )
+    html.append('<div id="app"><div class="empty-state">Loading…</div></div>')
 
     html.append(PAGE_FOOT.format(updated=now))
+    html.append(
+        APP_SCRIPT
+        % {
+            "supabase_url": SUPABASE_URL,
+            "supabase_anon_key": SUPABASE_ANON_KEY,
+            "stripe_payment_link": STRIPE_PAYMENT_LINK,
+        }
+    )
     return "".join(html)
 
 
@@ -415,8 +555,8 @@ qualifying purchases on those at no extra cost to you. Deals sourced from
 aggregator sites link directly to the original deal post and are not
 affiliate links.</p>
 
-<p>This is a personal hobby project built to keep an eye on good deals
-across the web.</p>
+<p>New visitors get a free 24-hour trial (just an email address, no card
+required); after that, continued access is $4/month.</p>
 </div>
 """)
     html.append(PAGE_FOOT.format(updated=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")))
@@ -424,12 +564,9 @@ across the web.</p>
 
 
 def main():
-    last_seen = load_json(LAST_SEEN_PATH, {})
-    updates = load_json(UPDATES_PATH, [])
-
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
-    (DOCS_DIR / "index.html").write_text(render_index(last_seen, updates), encoding="utf-8")
+    (DOCS_DIR / "index.html").write_text(render_index(), encoding="utf-8")
     (DOCS_DIR / "about.html").write_text(render_about(), encoding="utf-8")
     (DOCS_DIR / "style.css").write_text(STYLE_CSS, encoding="utf-8")
 

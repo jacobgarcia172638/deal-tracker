@@ -1,0 +1,5 @@
+[functions.stripe-webhook]
+# Stripe calls this endpoint directly -- it has no Supabase login of its own,
+# so the normal JWT check must be off. The Stripe signature check inside
+# index.ts is what verifies the caller instead.
+verify_jwt = false
