@@ -29,8 +29,12 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   email text,
   trial_started_at timestamptz not null default now(),
+  is_comped boolean not null default false,  -- site owner/admin: never gated, never pays
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run on a table that already exists from before this column existed.
+alter table public.profiles add column if not exists is_comped boolean not null default false;
 
 alter table public.profiles enable row level security;
 
@@ -92,7 +96,7 @@ create policy "Entitled users can read deals"
     exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
-        and p.trial_started_at > now() - interval '1 day'
+        and (p.is_comped or p.trial_started_at > now() - interval '1 day')
     )
     or exists (
       select 1 from public.subscriptions s
@@ -121,7 +125,7 @@ create policy "Entitled users can read tracked products"
     exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
-        and p.trial_started_at > now() - interval '1 day'
+        and (p.is_comped or p.trial_started_at > now() - interval '1 day')
     )
     or exists (
       select 1 from public.subscriptions s

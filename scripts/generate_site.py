@@ -553,12 +553,13 @@ APP_SCRIPT = """
       var email = session.user.email;
 
       Promise.all([
-        sb.from('profiles').select('trial_started_at').eq('id', userId).maybeSingle(),
+        sb.from('profiles').select('trial_started_at,is_comped').eq('id', userId).maybeSingle(),
         sb.from('subscriptions').select('status').eq('user_id', userId).maybeSingle()
       ]).then(function (results) {
         var profile = results[0].data;
         var subscription = results[1].data;
 
+        var comped = !!(profile && profile.is_comped);
         var trialActive = false;
         if (profile && profile.trial_started_at) {
           var started = new Date(profile.trial_started_at).getTime();
@@ -566,7 +567,7 @@ APP_SCRIPT = """
         }
         var subscribed = subscription && subscription.status === 'active';
 
-        if (!trialActive && !subscribed) { renderLocked(userId, email); return; }
+        if (!comped && !trialActive && !subscribed) { renderLocked(userId, email); return; }
 
         Promise.all([
           sb.from('deals').select('*').order('created_at', { ascending: false }).limit(50),
