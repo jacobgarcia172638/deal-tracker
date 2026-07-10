@@ -17,6 +17,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 import yaml
@@ -76,6 +77,16 @@ def price_to_float(price_str):
         return None
 
 
+def store_from_url(url):
+    """Derives a display-friendly retailer name from a product URL's domain,
+    e.g. 'www.amazon.com' -> 'Amazon'. Used so hand-picked products show up
+    under the same store filter as aggregator deals."""
+    host = urlparse(url).netloc.lower()
+    host = host.removeprefix("www.")
+    domain = host.split(".")[0] if host else ""
+    return domain.capitalize() if domain else None
+
+
 def check_product(product):
     url = product["url"]
     in_stock_text = product.get("in_stock_text", "")
@@ -102,6 +113,7 @@ def process_product(product, previous):
     the run."""
     name = product["name"]
     url = product["url"]
+    store = store_from_url(url)
 
     result = check_product(product)
     new_price = result["price"]
@@ -116,6 +128,7 @@ def process_product(product, previous):
             deals.append({
                 "type": "price_drop",
                 "product": name,
+                "store": store,
                 "affiliate_link": product.get("affiliate_link", url),
                 "old_price": old_price,
                 "new_price": new_price,
@@ -126,6 +139,7 @@ def process_product(product, previous):
             deals.append({
                 "type": "restock",
                 "product": name,
+                "store": store,
                 "affiliate_link": product.get("affiliate_link", url),
                 "new_price": new_price,
             })

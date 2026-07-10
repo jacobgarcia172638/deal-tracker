@@ -15,6 +15,15 @@ the original deal post and are **not** affiliate links. Only products you
 explicitly configure yourself (#2) use your affiliate link, clearly labeled
 "(affiliate link)".
 
+Every deal is tagged with the retailer it's actually from (Amazon, Lowe's,
+Best Buy, Walmart, Home Depot, whichever stores currently have deals in the
+feeds), and the site shows a row of filter pills so visitors can narrow the
+list down to one store at a time.
+
+**If you already ran `supabase/schema.sql` once before this store-filter
+feature existed**, re-run the whole file again in Supabase's SQL Editor — it's
+safe to run repeatedly and will just add the missing `store` column.
+
 **How the paywall actually works:** it's enforced by the database (Postgres
 Row Level Security in Supabase), not by the website's JavaScript. A visitor
 without an active trial or subscription genuinely cannot retrieve deal data

@@ -66,6 +66,7 @@ create table if not exists public.deals (
   type text not null,              -- 'price_drop' | 'restock' | 'aggregator_deal'
   product text not null,
   source text,
+  store text,                      -- retailer name, e.g. "Amazon", "Lowes", "Best Buy"
   link text,
   affiliate_link text,
   old_price numeric,
@@ -73,6 +74,9 @@ create table if not exists public.deals (
   snippet text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run on a table that already exists from before this column existed.
+alter table public.deals add column if not exists store text;
 
 -- Prevents the aggregator from re-adding the same RSS item every run.
 -- Multiple NULLs are allowed by Postgres unique constraints, so hand-picked

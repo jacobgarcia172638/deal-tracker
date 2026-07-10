@@ -42,6 +42,17 @@ HEADERS = {
 }
 
 TAG_STRIP = re.compile(r"<[^>]+>")
+CONTENT_ENCODED_TAG = "{http://purl.org/rss/1.0/modules/content/}encoded"
+STORE_SLUG_PATTERN = re.compile(r'data-store-slug="([^"]+)"')
+BUY_NOW_AT_PATTERN = re.compile(r"(?:Buy Now|Shop Now) at ([^<]+?)</p>")
+
+# Slickdeals' store slugs don't always title-case into the name a store
+# actually uses -- a few common ones are worth correcting by hand.
+STORE_NAME_FIXES = {
+    "Lowes": "Lowe's",
+    "Best Buy": "Best Buy",
+    "Home Depot": "Home Depot",
+}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("aggregate")
@@ -60,6 +71,31 @@ def clean_snippet(text, limit=200):
     return text[:limit] + ("…" if len(text) > limit else "")
 
 
+def humanize_slug(slug):
+    name = " ".join(word.capitalize() for word in slug.replace("-", " ").split())
+    return STORE_NAME_FIXES.get(name, name)
+
+
+def extract_store(item, description):
+    """
+    Figures out which retailer a deal is actually from, so the site can
+    filter by store. Slickdeals embeds a structured "data-store-slug" in
+    its content:encoded block; DealNews instead ends its description with
+    plain text like "Buy Now at Amazon". Falls back to None (shown as
+    "Other" on the site) if neither pattern matches.
+    """
+    content = item.findtext(CONTENT_ENCODED_TAG) or ""
+    match = STORE_SLUG_PATTERN.search(content)
+    if match:
+        return humanize_slug(match.group(1))
+
+    match = BUY_NOW_AT_PATTERN.search(description)
+    if match:
+        return match.group(1).strip()
+
+    return None
+
+
 def fetch_feed(name, rss_url):
     resp = requests.get(rss_url, headers=HEADERS, timeout=20)
     resp.raise_for_status()
@@ -76,6 +112,7 @@ def fetch_feed(name, rss_url):
             "type": "aggregator_deal",
             "product": title,
             "source": name,
+            "store": extract_store(item, description),
             "link": link,
             "snippet": clean_snippet(description),
         })

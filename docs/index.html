@@ -25,7 +25,7 @@
 <footer class="site-footer">
   <div class="wrap">
     <p>As an Amazon Associate, this site may earn from qualifying purchases via links marked <em>(affiliate link)</em>.</p>
-    <p class="muted">Page generated: 2026-07-10 19:25 UTC</p>
+    <p class="muted">Page generated: 2026-07-10 22:44 UTC</p>
   </div>
 </footer>
 </body>
@@ -34,9 +34,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
-  var SUPABASE_URL = "https://qvdhnthehqomakolkhwo.supabase.co";
-  var SUPABASE_ANON_KEY = "sb_publishable_AYax0h-HMPkKYuZNm3MkHg_54nwAuH0";
-  var STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_dRm9AS5Oq9ZW9xMa7OcjS00";
+  var SUPABASE_URL = "";
+  var SUPABASE_ANON_KEY = "";
+  var STRIPE_PAYMENT_LINK = "";
   var TRIAL_MS = 24 * 60 * 60 * 1000;
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -126,6 +126,7 @@
     }
     var icon = icons[u.type] || '';
     var delay = Math.min(index * 0.03, 0.3).toFixed(2);
+    var storeBadge = u.store ? '<span class="store-badge">' + escapeHtml(u.store) + '</span>' : '';
     return (
       '<div class="deal-card" style="animation-delay:' + delay + 's">' +
       '<div class="deal-card-top">' +
@@ -133,24 +134,52 @@
       '<span class="timestamp">' + escapeHtml(u.created_at || '') + '</span>' +
       '</div>' +
       '<a class="deal-title" href="' + link + '" target="_blank" rel="' + rel + '">' + escapeHtml(u.product) + '</a>' +
+      ' ' + storeBadge +
       note +
       (detail ? '<div class="deal-detail">' + detail + '</div>' : '') +
       '</div>'
     );
   }
 
-  function renderEntitled(deals, products) {
+  // Kept in outer scope so clicking a filter pill re-renders without
+  // re-fetching from Supabase.
+  var allDeals = [];
+  var allProducts = [];
+  var selectedStore = 'All';
+
+  function storeOf(row) {
+    return row.store || 'Other';
+  }
+
+  function filterBarHtml(stores) {
+    var pills = ['All'].concat(stores);
+    return '<div class="filter-bar">' + pills.map(function (s) {
+      var active = (s === selectedStore) ? ' active' : '';
+      return '<button type="button" class="filter-pill' + active + '" data-store="' + escapeHtml(s) + '">' +
+        escapeHtml(s) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function renderFilteredContent() {
+    var stores = Array.from(new Set(allDeals.concat(allProducts).map(storeOf))).sort();
+    var deals = selectedStore === 'All' ? allDeals : allDeals.filter(function (d) { return storeOf(d) === selectedStore; });
+    var products = selectedStore === 'All' ? allProducts : allProducts.filter(function (p) { return storeOf(p) === selectedStore; });
+
     var html = '';
-    html += '<div class="stat-row" style="margin-bottom:28px;">';
-    html += '<span class="stat-pill"><strong>' + deals.length + '</strong> deals logged</span>';
-    html += '<span class="stat-pill"><strong>' + products.length + '</strong> products watched closely</span>';
+    html += '<div class="stat-row" style="margin-bottom:16px;">';
+    html += '<span class="stat-pill"><strong>' + allDeals.length + '</strong> deals logged</span>';
+    html += '<span class="stat-pill"><strong>' + allProducts.length + '</strong> products watched closely</span>';
     html += '</div>';
+
+    if (stores.length > 1) {
+      html += filterBarHtml(stores);
+    }
 
     html += '<h2>Latest Updates</h2>';
     if (deals.length) {
       html += '<div class="updates">' + deals.map(dealCardHtml).join('') + '</div>';
     } else {
-      html += '<div class="empty-state">No deals recorded yet. Check back soon.</div>';
+      html += '<div class="empty-state">No deals match this filter yet.</div>';
     }
 
     html += '<h2>Currently Tracked Products</h2>';
@@ -170,6 +199,22 @@
     }
 
     appEl.innerHTML = html;
+
+    var bar = appEl.querySelector('.filter-bar');
+    if (bar) {
+      bar.addEventListener('click', function (e) {
+        var btn = e.target.closest('.filter-pill');
+        if (!btn) return;
+        selectedStore = btn.getAttribute('data-store');
+        renderFilteredContent();
+      });
+    }
+  }
+
+  function renderEntitled(deals, products) {
+    allDeals = deals;
+    allProducts = products;
+    renderFilteredContent();
   }
 
   function main() {

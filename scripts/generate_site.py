@@ -208,6 +208,40 @@ h2:first-of-type { margin-top: 8px; }
 
 .timestamp { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
 
+.store-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  vertical-align: middle;
+}
+
+/* Store filter bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 24px;
+}
+.filter-pill {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.filter-pill:hover { border-color: var(--accent); color: var(--text); }
+.filter-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .empty-state {
   background: var(--card-bg);
   border: 1px dashed var(--border);
@@ -419,6 +453,7 @@ APP_SCRIPT = """
     }
     var icon = icons[u.type] || '';
     var delay = Math.min(index * 0.03, 0.3).toFixed(2);
+    var storeBadge = u.store ? '<span class="store-badge">' + escapeHtml(u.store) + '</span>' : '';
     return (
       '<div class="deal-card" style="animation-delay:' + delay + 's">' +
       '<div class="deal-card-top">' +
@@ -426,24 +461,52 @@ APP_SCRIPT = """
       '<span class="timestamp">' + escapeHtml(u.created_at || '') + '</span>' +
       '</div>' +
       '<a class="deal-title" href="' + link + '" target="_blank" rel="' + rel + '">' + escapeHtml(u.product) + '</a>' +
+      ' ' + storeBadge +
       note +
       (detail ? '<div class="deal-detail">' + detail + '</div>' : '') +
       '</div>'
     );
   }
 
-  function renderEntitled(deals, products) {
+  // Kept in outer scope so clicking a filter pill re-renders without
+  // re-fetching from Supabase.
+  var allDeals = [];
+  var allProducts = [];
+  var selectedStore = 'All';
+
+  function storeOf(row) {
+    return row.store || 'Other';
+  }
+
+  function filterBarHtml(stores) {
+    var pills = ['All'].concat(stores);
+    return '<div class="filter-bar">' + pills.map(function (s) {
+      var active = (s === selectedStore) ? ' active' : '';
+      return '<button type="button" class="filter-pill' + active + '" data-store="' + escapeHtml(s) + '">' +
+        escapeHtml(s) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function renderFilteredContent() {
+    var stores = Array.from(new Set(allDeals.concat(allProducts).map(storeOf))).sort();
+    var deals = selectedStore === 'All' ? allDeals : allDeals.filter(function (d) { return storeOf(d) === selectedStore; });
+    var products = selectedStore === 'All' ? allProducts : allProducts.filter(function (p) { return storeOf(p) === selectedStore; });
+
     var html = '';
-    html += '<div class="stat-row" style="margin-bottom:28px;">';
-    html += '<span class="stat-pill"><strong>' + deals.length + '</strong> deals logged</span>';
-    html += '<span class="stat-pill"><strong>' + products.length + '</strong> products watched closely</span>';
+    html += '<div class="stat-row" style="margin-bottom:16px;">';
+    html += '<span class="stat-pill"><strong>' + allDeals.length + '</strong> deals logged</span>';
+    html += '<span class="stat-pill"><strong>' + allProducts.length + '</strong> products watched closely</span>';
     html += '</div>';
+
+    if (stores.length > 1) {
+      html += filterBarHtml(stores);
+    }
 
     html += '<h2>Latest Updates</h2>';
     if (deals.length) {
       html += '<div class="updates">' + deals.map(dealCardHtml).join('') + '</div>';
     } else {
-      html += '<div class="empty-state">No deals recorded yet. Check back soon.</div>';
+      html += '<div class="empty-state">No deals match this filter yet.</div>';
     }
 
     html += '<h2>Currently Tracked Products</h2>';
@@ -463,6 +526,22 @@ APP_SCRIPT = """
     }
 
     appEl.innerHTML = html;
+
+    var bar = appEl.querySelector('.filter-bar');
+    if (bar) {
+      bar.addEventListener('click', function (e) {
+        var btn = e.target.closest('.filter-pill');
+        if (!btn) return;
+        selectedStore = btn.getAttribute('data-store');
+        renderFilteredContent();
+      });
+    }
+  }
+
+  function renderEntitled(deals, products) {
+    allDeals = deals;
+    allProducts = products;
+    renderFilteredContent();
   }
 
   function main() {
